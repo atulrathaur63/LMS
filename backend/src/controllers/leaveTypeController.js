@@ -1,4 +1,6 @@
 const LeaveType = require("../models/LeaveType");
+const LeaveBalance = require("../models/LeaveBalance");
+const LeaveRequest = require("../models/LeaveRequest");
 
 const createLeaveType = async (req, res) => {
   try {
@@ -101,8 +103,150 @@ const getSingleLeaveType = async (req, res) => {
   }
 };
 
+const updateLeaveType = async (req, res) => {
+  try {
+    const {
+      leaveName,
+      leaveCode,
+      totalPerYear,
+      isPaid,
+      carryForward,
+      requiresAttachment,
+      allowHalfDay,
+      status,
+    } = req.body || {};
+
+    const leaveType = await LeaveType.findById(req.params.id);
+
+    if (!leaveType) {
+      return res.status(404).json({
+        success: false,
+        message: "Leave type not found",
+      });
+    }
+
+    if (leaveName !== undefined) leaveType.leaveName = leaveName;
+    if (leaveCode !== undefined) leaveType.leaveCode = String(leaveCode).toUpperCase();
+    if (totalPerYear !== undefined) leaveType.totalPerYear = Number(totalPerYear);
+    if (isPaid !== undefined) leaveType.isPaid = isPaid;
+    if (carryForward !== undefined) leaveType.carryForward = carryForward;
+    if (requiresAttachment !== undefined) leaveType.requiresAttachment = requiresAttachment;
+    if (allowHalfDay !== undefined) leaveType.allowHalfDay = allowHalfDay;
+    if (status !== undefined) leaveType.status = status;
+
+    await leaveType.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Leave type updated successfully",
+      leaveType,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update leave type",
+      error: error.message,
+    });
+  }
+};
+
+const updateLeaveTypeStatus = async (req, res) => {
+  try {
+
+    const { status } = req.body || {};
+
+    if (!status || !["ACTIVE","INACTIVE"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid status required: ACTIVE or INACTIVE",
+      });
+    }
+
+    const leaveType = await LeaveType.findById(req.params.id);
+
+    if (!leaveType) {
+      return res.status(404).json({
+        success: false,
+        message: "Leave type not found",
+      });
+    }
+
+    leaveType.status = status;
+
+    await leaveType.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Leave type status updated successfully",
+      leaveType,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update leave type status",
+      error: error.message,
+    });
+
+  }
+};
+
+const deleteLeaveType = async (req, res) => {
+
+  try {
+
+    const leaveType = await LeaveType.findById(req.params.id);
+
+    if (!leaveType) {
+      return res.status(404).json({
+        success: false,
+        message: "Leave type not found",
+      });
+    }
+
+    const balancesUsingType = await LeaveBalance.countDocuments({
+      leaveTypeId: leaveType._id,
+    });
+
+    const requestsUsingType = await LeaveRequest.countDocuments({
+      leaveTypeId: leaveType._id,
+    });
+
+    if (balancesUsingType > 0 || requestsUsingType > 0) {
+
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete leave type because it is already used",
+      });
+
+    }
+
+    await leaveType.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: "Leave type deleted successfully",
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete leave type",
+      error: error.message,
+    });
+
+  }
+
+};
+
 module.exports = {
   createLeaveType,
   getAllLeaveTypes,
   getSingleLeaveType,
+  updateLeaveType,
+  updateLeaveTypeStatus,
+  deleteLeaveType,
 };

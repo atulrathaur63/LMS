@@ -3,15 +3,35 @@ const router = express.Router();
 
 const {
   createRole,
-  getAllRoles,
-  getSingleRole,
+  getRoles,
+  updateRole,
+  deleteRole,
 } = require("../controllers/roleController");
 
 const { protect } = require("../middlewares/authMiddleware");
 const { allowRoles } = require("../middlewares/roleMiddleware");
 
-router.post("/", protect, allowRoles("SUPER_ADMIN"), createRole);
-router.get("/", protect, allowRoles("SUPER_ADMIN", "ADMIN", "HR"), getAllRoles);
-router.get("/:id", protect, allowRoles("SUPER_ADMIN", "ADMIN", "HR"), getSingleRole);
+router.get("/", protect, getRoles);
+
+router.post(
+  "/",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN", "HR"),
+  createRole
+);
+
+router.put(
+  "/:id",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN", "HR"),
+  updateRole
+);
+
+router.delete(
+  "/:id",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  deleteRole
+);
 
 module.exports = router;

@@ -1,5 +1,7 @@
+const crypto = require("crypto");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
+const { createSystemLog } = require("../services/logService");
 
 const login = async (req, res) => {
   try {
@@ -76,6 +78,145 @@ const login = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // security reason: same generic response
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "If an account exists with this email, a reset link/token has been generated.",
+      });
+    }
+
+    if (user.status !== "ACTIVE") {
+      return res.status(403).json({
+        success: false,
+        message: "User account is inactive",
+      });
+    }
+
+    const resetToken = user.generatePasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    await createSystemLog({
+      action: "PASSWORD_RESET_REQUESTED",
+      entity: "User",
+      entityId: user._id,
+      performedBy: user._id,
+      details: {
+        email: user.email,
+      },
+    });
+
+    // Phase 1: return token in API for testing/postman
+    // Later email service se reset link bhej denge
+    return res.status(200).json({
+      success: true,
+      message: "Password reset token generated successfully",
+      resetToken,
+      expiresInMinutes: 15,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Forgot password request failed",
+      error: error.message,
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body || {};
+
+    if (!token || !password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Token, password, and confirmPassword are required",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Password and confirm password do not match",
+      });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token",
+      });
+    }
+
+    user.passwordHash = password;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+
+    await user.save();
+
+    await createSystemLog({
+      action: "PASSWORD_RESET_COMPLETED",
+      entity: "User",
+      entityId: user._id,
+      performedBy: user._id,
+      details: {
+        email: user.email,
+      },
+    });
+
+    const jwtToken = generateToken(user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful",
+      token: jwtToken,
+      user: {
+        id: user._id,
+        employeeCode: user.employeeCode,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Reset password failed",
+      error: error.message,
+    });
+  }
+};
+
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
@@ -107,5 +248,7 @@ const getMe = async (req, res) => {
 
 module.exports = {
   login,
+  forgotPassword,
+  resetPassword,
   getMe,
 };

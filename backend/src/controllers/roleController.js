@@ -1,4 +1,5 @@
 const Role = require("../models/Role");
+const User = require("../models/User");
 
 const createRole = async (req, res) => {
   try {
@@ -47,25 +48,60 @@ const createRole = async (req, res) => {
   }
 };
 
-const getAllRoles = async (req, res) => {
+// const getAllRoles = async (req, res) => {
+//   try {
+//     const roles = await Role.find().sort({ createdAt: -1 });
+
+//     return res.status(200).json({
+//       success: true,
+//       count: roles.length,
+//       roles,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch roles",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// updateRole
+const updateRole = async (req, res) => {
   try {
-    const roles = await Role.find().sort({ createdAt: -1 });
+    const { roleName, roleCode, description, permissions } = req.body || {};
+
+    const role = await Role.findById(req.params.id);
+    if (!role) {
+      return res.status(404).json({
+        success: false,
+        message: "Role not found",
+      });
+    }
+
+    if (roleName !== undefined) role.roleName = roleName;
+    if (roleCode !== undefined) role.roleCode = String(roleCode).toUpperCase();
+    if (description !== undefined) role.description = description;
+    if (permissions !== undefined) role.permissions = permissions;
+
+    await role.save();
 
     return res.status(200).json({
       success: true,
-      count: roles.length,
-      roles,
+      message: "Role updated successfully",
+      role,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch roles",
+      message: "Failed to update role",
       error: error.message,
     });
   }
 };
 
-const getSingleRole = async (req, res) => {
+// Delete Role
+const deleteRole = async (req, res) => {
   try {
     const role = await Role.findById(req.params.id);
 
@@ -76,21 +112,58 @@ const getSingleRole = async (req, res) => {
       });
     }
 
+    const usersUsingRole = await User.countDocuments({ roleId: role._id });
+    if (usersUsingRole > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete role because users are assigned to it",
+      });
+    }
+
+    await role.deleteOne();
+
     return res.status(200).json({
       success: true,
-      role,
+      message: "Role deleted successfully",
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch role",
+      message: "Failed to delete role",
       error: error.message,
     });
   }
 };
 
+// const getSingleRole = async (req, res) => {
+//   try {
+//     const role = await Role.findById(req.params.id);
+
+//     if (!role) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Role not found",
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       role,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch role",
+//       error: error.message,
+//     });
+//   }
+// };
+
 module.exports = {
   createRole,
-  getAllRoles,
-  getSingleRole,
+  getRoles,
+  updateRole,
+  deleteRole,
+  // getAllRoles,
+  // getSingleRole,
 };

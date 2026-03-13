@@ -290,9 +290,140 @@ const updateUser = async (req, res) => {
   }
 };
 
+const updateUserStatus = async (req, res) => {
+  try {
+
+    const { status } = req.body || {};
+
+    if (!status || !["ACTIVE", "INACTIVE"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid status required: ACTIVE or INACTIVE",
+      });
+    }
+
+    const user = await User.findById(req.params.id)
+      .select("-passwordHash")
+      .populate("roleId", "roleName roleCode")
+      .populate("departmentId", "departmentName");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.status = status;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "User status updated successfully",
+      user,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update user status",
+      error: error.message,
+    });
+
+  }
+};
+
+const updateUserApprover = async (req, res) => {
+
+  try {
+
+    const { approverId, reportingManagerId } = req.body || {};
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (approverId && String(approverId) === String(user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "User cannot approve own leave",
+      });
+    }
+
+    if (approverId) {
+
+      const approver = await User.findById(approverId);
+
+      if (!approver) {
+        return res.status(404).json({
+          success: false,
+          message: "Approver not found",
+        });
+      }
+
+      if (approver.status !== "ACTIVE") {
+        return res.status(400).json({
+          success: false,
+          message: "Approver must be active",
+        });
+      }
+
+      user.approverId = approverId;
+    }
+
+    if (reportingManagerId) {
+
+      const manager = await User.findById(reportingManagerId);
+
+      if (!manager) {
+        return res.status(404).json({
+          success: false,
+          message: "Reporting manager not found",
+        });
+      }
+
+      user.reportingManagerId = reportingManagerId;
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(user._id)
+      .select("-passwordHash")
+      .populate("roleId", "roleName roleCode")
+      .populate("departmentId", "departmentName")
+      .populate("approverId", "name email employeeCode")
+      .populate("reportingManagerId", "name email employeeCode");
+
+    return res.status(200).json({
+      success: true,
+      message: "Approver mapping updated successfully",
+      user: updatedUser,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update approver mapping",
+      error: error.message,
+    });
+
+  }
+
+};
+
 module.exports = {
   createUser,
   getAllUsers,
   getSingleUser,
   updateUser,
+  updateUserStatus,
+  updateUserApprover,
 };

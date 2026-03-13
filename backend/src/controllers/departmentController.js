@@ -1,4 +1,5 @@
 const Department = require("../models/Department");
+const User = require("../models/User");
 
 const createDepartment = async (req, res) => {
   try {
@@ -89,8 +90,82 @@ const getSingleDepartment = async (req, res) => {
   }
 };
 
+// update Department
+const updateDepartment = async (req, res) => {
+  try {
+    const { departmentName, description } = req.body || {};
+
+    const department = await Department.findById(req.params.id);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: "Department not found",
+      });
+    }
+
+    if (departmentName !== undefined) department.departmentName = departmentName;
+    if (description !== undefined) department.description = description;
+
+    await department.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Department updated successfully",
+      department,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update department",
+      error: error.message,
+    });
+  }
+};
+
+// Delete Department
+const deleteDepartment = async (req, res) => {
+  try {
+    const department = await Department.findById(req.params.id);
+
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: "Department not found",
+      });
+    }
+
+    const usersUsingDepartment = await User.countDocuments({
+      departmentId: department._id,
+    });
+
+    if (usersUsingDepartment > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete department because users are assigned to it",
+      });
+    }
+
+    await department.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: "Department deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete department",
+      error: error.message,
+    });
+  }
+};
+
+
+
 module.exports = {
   createDepartment,
   getAllDepartments,
   getSingleDepartment,
+  updateDepartment,
+  deleteDepartment,
 };

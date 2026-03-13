@@ -4,6 +4,7 @@ const LeaveType = require("../models/LeaveType");
 const Holiday = require("../models/Holiday");
 const User = require("../models/User");
 const { createNotification } = require("../services/notificationService");
+const { createApprovalLog, createSystemLog } = require("../services/logService");
 
 const calculateWorkingDays = async (fromDate, toDate, leaveSession) => {
   const start = new Date(fromDate);
@@ -39,11 +40,12 @@ const calculateWorkingDays = async (fromDate, toDate, leaveSession) => {
     const dateStr = current.toISOString().split("T")[0];
 
     const isSunday = day === 0;
+    const isOddSat = isOddSaturday(current);
     const isHoliday = holidaySet.has(dateStr);
 
-    if (!isSunday && !isHoliday) {
-      totalDays += 1;
-    }
+    if (!isSunday && !isOddSat && !isHoliday) {
+  totalDays += 1;
+}
 
     current.setDate(current.getDate() + 1);
   }
@@ -126,6 +128,22 @@ const applyLeave = async (req, res) => {
       });
     }
 
+    // odd saturday off logic
+    const isOddSaturday = (date) => {
+
+  const day = date.getDay();
+
+  if (day !== 6) return false;
+
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+
+  const saturdayCount =
+    Math.ceil((date.getDate() + firstDay.getDay()) / 7);
+
+  return [1,3,5].includes(saturdayCount);
+
+};
+
     const totalDays = await calculateWorkingDays(fromDate, toDate, sessionValue);
 
     if (totalDays <= 0) {
@@ -188,6 +206,27 @@ const applyLeave = async (req, res) => {
       leaveSession: sessionValue,
       status: "PENDING",
     });
+
+await createSystemLog({
+  action: "LEAVE_SUBMITTED",
+  entity: "LeaveRequest",
+  entityId: leaveRequest._id,
+  performedBy: userId,
+  details: {
+    approverId: user.approverId,
+    fromDate,
+    toDate,
+    totalDays,
+    leaveTypeId,
+  },
+});
+
+    await createApprovalLog({
+  leaveRequestId: leaveRequest._id,
+  actionBy: userId,
+  action: "SUBMITTED",
+  comment: "Leave submitted by employee",
+});
 
     await createNotification({
   userId: user.approverId,
@@ -300,34 +339,79 @@ const cancelMyLeave = async (req, res) => {
       });
     }
 
-    if (["REJECTED", "CANCELLED"].includes(leave.status)) {
+    if (["REJECTED", "CANCELLED", "CANCEL_PENDING"].includes(leave.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot cancel a ${leave.status.toLowerCase()} leave`,
       });
     }
 
-    if (leave.status === "APPROVED") {
-      const year = new Date(leave.fromDate).getFullYear();
+    // Pending leave = direct cancel
+    if (leave.status === "PENDING") {
+      leave.status = "CANCELLED";
+      leave.remarks = "Pending leave cancelled by employee";
+      leave.cancelledAt = new Date();
+      await leave.save();
 
-      const balance = await LeaveBalance.findOne({
-        userId: leave.userId,
-        leaveTypeId: leave.leaveTypeId,
-        year,
+      await createApprovalLog({
+        leaveRequestId: leave._id,
+        actionBy: userId,
+        action: "CANCELLED",
+        comment: "Pending leave cancelled directly by employee",
       });
 
-      if (balance) {
-        balance.used -= leave.totalDays;
-        balance.remaining += leave.totalDays;
+      await createSystemLog({
+        action: "LEAVE_CANCELLED",
+        entity: "LeaveRequest",
+        entityId: leave._id,
+        performedBy: userId,
+        details: {
+          mode: "DIRECT_PENDING_CANCEL",
+        },
+      });
 
-        if (balance.used < 0) balance.used = 0;
-        await balance.save();
-      }
+      await createNotification({
+        userId: leave.approverId,
+        title: "Leave Cancelled",
+        message: "An employee cancelled a pending leave request.",
+        type: "LEAVE_CANCELLED",
+        referenceId: leave._id,
+        referenceModel: "LeaveRequest",
+      });
     }
 
-    leave.status = "CANCELLED";
-    leave.remarks = "Cancelled by employee";
-    await leave.save();
+    // Approved leave = cancel request, not direct cancel
+    if (leave.status === "APPROVED") {
+      leave.status = "CANCEL_PENDING";
+      leave.remarks = "Approved leave cancellation requested by employee";
+      await leave.save();
+
+      await createApprovalLog({
+        leaveRequestId: leave._id,
+        actionBy: userId,
+        action: "CANCEL_REQUESTED",
+        comment: "Approved leave cancellation requested by employee",
+      });
+
+      await createSystemLog({
+        action: "LEAVE_CANCELLATION_REQUESTED",
+        entity: "LeaveRequest",
+        entityId: leave._id,
+        performedBy: userId,
+        details: {
+          mode: "APPROVED_CANCEL_REQUEST",
+        },
+      });
+
+      await createNotification({
+        userId: leave.approverId,
+        title: "Leave Cancellation Request",
+        message: "An employee requested cancellation of an approved leave.",
+        type: "LEAVE_CANCEL_REQUESTED",
+        referenceId: leave._id,
+        referenceModel: "LeaveRequest",
+      });
+    }
 
     const updatedLeave = await LeaveRequest.findById(leave._id)
       .populate("userId", "employeeCode name email")
@@ -337,7 +421,10 @@ const cancelMyLeave = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Leave cancelled successfully",
+      message:
+        updatedLeave.status === "CANCELLED"
+          ? "Leave cancelled successfully"
+          : "Leave cancellation request submitted successfully",
       leave: updatedLeave,
     });
   } catch (error) {
@@ -347,14 +434,6 @@ const cancelMyLeave = async (req, res) => {
       error: error.message,
     });
   }
-  await createNotification({
-  userId: leave.approverId,
-  title: "Leave Cancelled",
-  message: `A leave request has been cancelled by the employee.`,
-  type: "LEAVE_CANCELLED",
-  referenceId: leave._id,
-  referenceModel: "LeaveRequest",
-});
 };
 
 

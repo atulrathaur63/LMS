@@ -29,15 +29,13 @@ const getLeaveReport = async (req, res) => {
 
     if (month && year) {
       const start = new Date(Number(year), Number(month) - 1, 1);
-      const end = new Date(Number(year), Number(month), 0, 23, 59, 59, 999);
+      const end = new Date(Number(year), Number(month), 0, 23, 59, 59);
       query.fromDate = { $gte: start, $lte: end };
     }
 
-    let userIds = null;
-
     if (departmentId) {
       const users = await User.find({ departmentId }).select("_id");
-      userIds = users.map((u) => u._id);
+      const userIds = users.map((u) => u._id);
       query.userId = { $in: userIds };
     }
 
@@ -99,6 +97,7 @@ const getDepartmentLeaveSummary = async (req, res) => {
         },
       },
       { $unwind: "$user" },
+
       {
         $lookup: {
           from: "departments",
@@ -108,38 +107,38 @@ const getDepartmentLeaveSummary = async (req, res) => {
         },
       },
       { $unwind: "$department" },
+
       {
         $group: {
           _id: "$department._id",
           departmentName: { $first: "$department.departmentName" },
+
           totalRequests: { $sum: 1 },
+
           approvedRequests: {
             $sum: { $cond: [{ $eq: ["$status", "APPROVED"] }, 1, 0] },
           },
+
           pendingRequests: {
             $sum: { $cond: [{ $eq: ["$status", "PENDING"] }, 1, 0] },
           },
+
           rejectedRequests: {
             $sum: { $cond: [{ $eq: ["$status", "REJECTED"] }, 1, 0] },
           },
+
           cancelledRequests: {
             $sum: { $cond: [{ $eq: ["$status", "CANCELLED"] }, 1, 0] },
           },
+
+          cancelPendingRequests: {
+            $sum: { $cond: [{ $eq: ["$status", "CANCEL_PENDING"] }, 1, 0] },
+          },
+
           totalLeaveDays: { $sum: "$totalDays" },
         },
       },
-      {
-        $project: {
-          _id: 1,
-          departmentName: 1,
-          totalRequests: 1,
-          approvedRequests: 1,
-          pendingRequests: 1,
-          rejectedRequests: 1,
-          cancelledRequests: 1,
-          totalLeaveDays: 1,
-        },
-      },
+
       { $sort: { departmentName: 1 } },
     ]);
 
@@ -170,32 +169,43 @@ const getMonthlyLeaveSummary = async (req, res) => {
           fromDate: { $gte: start, $lte: end },
         },
       },
+
       {
         $group: {
           _id: { $month: "$fromDate" },
+
           totalRequests: { $sum: 1 },
+
           approvedRequests: {
             $sum: { $cond: [{ $eq: ["$status", "APPROVED"] }, 1, 0] },
           },
+
           pendingRequests: {
             $sum: { $cond: [{ $eq: ["$status", "PENDING"] }, 1, 0] },
           },
+
           rejectedRequests: {
             $sum: { $cond: [{ $eq: ["$status", "REJECTED"] }, 1, 0] },
           },
+
           cancelledRequests: {
             $sum: { $cond: [{ $eq: ["$status", "CANCELLED"] }, 1, 0] },
           },
+
+          cancelPendingRequests: {
+            $sum: { $cond: [{ $eq: ["$status", "CANCEL_PENDING"] }, 1, 0] },
+          },
+
           totalLeaveDays: { $sum: "$totalDays" },
         },
       },
+
       { $sort: { _id: 1 } },
     ]);
 
     return res.status(200).json({
       success: true,
       year,
-      count: summary.length,
       summary,
     });
   } catch (error) {
@@ -209,7 +219,9 @@ const getMonthlyLeaveSummary = async (req, res) => {
 
 const getPendingApprovalsReport = async (req, res) => {
   try {
-    const leaves = await LeaveRequest.find({ status: "PENDING" })
+    const leaves = await LeaveRequest.find({
+      status: { $in: ["PENDING", "CANCEL_PENDING"] },
+    })
       .populate("userId", "employeeCode name email designation")
       .populate("leaveTypeId", "leaveName leaveCode")
       .populate("approverId", "employeeCode name email")
@@ -235,6 +247,7 @@ const getApprovedRejectedSummary = async (req, res) => {
     const approvedCount = await LeaveRequest.countDocuments({ status: "APPROVED" });
     const rejectedCount = await LeaveRequest.countDocuments({ status: "REJECTED" });
     const cancelledCount = await LeaveRequest.countDocuments({ status: "CANCELLED" });
+    const cancelPendingCount = await LeaveRequest.countDocuments({ status: "CANCEL_PENDING" });
     const pendingCount = await LeaveRequest.countDocuments({ status: "PENDING" });
 
     return res.status(200).json({
@@ -243,13 +256,14 @@ const getApprovedRejectedSummary = async (req, res) => {
         approvedCount,
         rejectedCount,
         cancelledCount,
+        cancelPendingCount,
         pendingCount,
       },
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch approved/rejected summary",
+      message: "Failed to fetch status summary",
       error: error.message,
     });
   }
@@ -260,6 +274,7 @@ const getLeaveBalanceReport = async (req, res) => {
     const { userId, year, leaveTypeId } = req.query;
 
     const query = {};
+
     if (userId) query.userId = userId;
     if (year) query.year = Number(year);
     if (leaveTypeId) query.leaveTypeId = leaveTypeId;

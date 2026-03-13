@@ -14,6 +14,7 @@ const holidayRoutes = require("./routes/holidayRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const calendarRoutes = require("./routes/calendarRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 const app = express();
 
@@ -38,5 +39,7 @@ app.use("/api/holidays", holidayRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/logs", require("./routes/logRoutes"));
+app.use("/api/dashboard", dashboardRoutes);
 
 module.exports = app;

@@ -7,11 +7,6 @@ const leaveRequestSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    leaveTypeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "LeaveType",
-      required: true,
-    },
     approverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -21,6 +16,11 @@ const leaveRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
+    },
+    leaveTypeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "LeaveType",
+      required: true,
     },
     fromDate: {
       type: Date,
@@ -35,6 +35,11 @@ const leaveRequestSchema = new mongoose.Schema(
       required: true,
       min: 0.5,
     },
+    leaveSession: {
+      type: String,
+      enum: ["FULL_DAY", "FIRST_HALF", "SECOND_HALF", "SHORT_LEAVE"],
+      default: "FULL_DAY",
+    },
     reason: {
       type: String,
       required: true,
@@ -44,16 +49,19 @@ const leaveRequestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    leaveSession: {
-      type: String,
-      enum: ["FULL_DAY", "FIRST_HALF", "SECOND_HALF", "SHORT_LEAVE"],
-      default: "FULL_DAY",
-    },
+
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+      enum: [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED",
+        "CANCEL_PENDING",
+      ],
       default: "PENDING",
     },
+
     managerActionAt: {
       type: Date,
       default: null,
@@ -62,9 +70,33 @@ const leaveRequestSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    approverComment: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    hrNotifiedAt: {
+      type: Date,
+      default: null,
+    },
+
     remarks: {
       type: String,
       default: "",
+      trim: true,
     },
   },
   { timestamps: true }
