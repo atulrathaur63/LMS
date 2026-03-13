@@ -1,0 +1,109 @@
+API same rahegi:
+
+POST http://localhost:5000/api/leave-types
+
+Headers:
+
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+1️⃣ Casual Leave (CL)
+{
+  "leaveName": "Casual Leave",
+  "leaveCode": "CL",
+  "totalPerYear": 12,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": false,
+  "allowHalfDay": true,
+  "status": "ACTIVE"
+}
+2️⃣ Sick Leave (SL)
+{
+  "leaveName": "Sick Leave",
+  "leaveCode": "SL",
+  "totalPerYear": 10,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": true,
+  "allowHalfDay": true,
+  "status": "ACTIVE"
+}
+3️⃣ Earned Leave (EL)
+{
+  "leaveName": "Earned Leave",
+  "leaveCode": "EL",
+  "totalPerYear": 15,
+  "isPaid": true,
+  "carryForward": true,
+  "requiresAttachment": false,
+  "allowHalfDay": false,
+  "status": "ACTIVE"
+}
+4️⃣ Loss Of Pay (LOP)
+{
+  "leaveName": "Loss Of Pay",
+  "leaveCode": "LOP",
+  "totalPerYear": 0,
+  "isPaid": false,
+  "carryForward": false,
+  "requiresAttachment": false,
+  "allowHalfDay": false,
+  "status": "ACTIVE"
+}
+5️⃣ Maternity Leave (ML)
+{
+  "leaveName": "Maternity Leave",
+  "leaveCode": "ML",
+  "totalPerYear": 180,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": true,
+  "allowHalfDay": false,
+  "status": "ACTIVE"
+}
+6️⃣ Paternity Leave (PL)
+{
+  "leaveName": "Paternity Leave",
+  "leaveCode": "PL",
+  "totalPerYear": 15,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": false,
+  "allowHalfDay": false,
+  "status": "ACTIVE"
+}
+7️⃣ Half Day Leave (HDL)
+{
+  "leaveName": "Half Day Leave",
+  "leaveCode": "HDL",
+  "totalPerYear": 24,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": false,
+  "allowHalfDay": true,
+  "status": "ACTIVE"
+}
+8️⃣ Short Leave (SHL)
+{
+  "leaveName": "Short Leave",
+  "leaveCode": "SHL",
+  "totalPerYear": 24,
+  "isPaid": true,
+  "carryForward": false,
+  "requiresAttachment": false,
+  "allowHalfDay": false,
+  "status": "ACTIVE"
+}
+Verify
+
+Sab create hone ke baad run karo:
+
+GET http://localhost:5000/api/leave-types
+
+Header:
+
+Authorization: Bearer YOUR_TOKEN
+
+Expected:
+
+8 leave types
